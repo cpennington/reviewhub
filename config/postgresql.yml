@@ -1,0 +1,24 @@
+Default: &defaults
+  user: reviewhub
+  password: reviewhub
+  host: localhost
+  port: 5432
+  database: reviewhub
+  poolsize: 10
+
+Development:
+  <<: *defaults
+
+Testing:
+  database: reviewhub_test
+  <<: *defaults
+
+Staging:
+  database: reviewhub_staging
+  poolsize: 100
+  <<: *defaults
+
+Production:
+  database: reviewhub_production
+  poolsize: 100
+  <<: *defaults

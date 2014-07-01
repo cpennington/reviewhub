@@ -1,3 +1,0 @@
-module ReviewHub.Internal
-    (
-    ) where
