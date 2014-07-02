@@ -69,6 +69,7 @@ library
                  , wai-logger                    >= 2.1        && < 2.2
                  , heroku                        == 0.1.*
                  , unordered-containers          == 0.2.*
+                 , attoparsec                    == 0.11.*
 
 executable         reviewhub
     if flag(library-only)

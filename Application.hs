@@ -27,6 +27,8 @@ import Yesod.Core.Types (loggerSet, Logger (Logger))
 
 import qualified Data.HashMap.Strict as H
 import qualified Data.Aeson.Types as AT
+import qualified Data.Attoparsec.Char8 as APC
+import Data.Text (unpack)
 #ifndef DEVELOPMENT
 import qualified Web.Heroku
 #endif
@@ -108,12 +110,13 @@ getApplicationDev =
         }
 
 #ifndef DEVELOPMENT
-canonicalizeKey :: (Text, val) -> (Text, val)
-canonicalizeKey ("dbname", val) = ("database", val)
-canonicalizeKey pair = pair
+canonicalizeKey :: (Text, Text) -> (Text, AT.Value)
+canonicalizeKey ("dbname", val) = ("database", AT.String val)
+canonicalizeKey ("port", port) = ("port", AT.Number $ APC.I $ read $ unpack port)
+canonicalizeKey (key, value) = (key, AT.String value)
 
-toMapping :: [(Text, Text)] -> AT.Value
-toMapping xs = AT.Object $ H.fromList $ map (\(key, val) -> (key, AT.String val)) xs
+toMapping :: [(Text, AT.Value)] -> AT.Value
+toMapping xs = AT.Object $ H.fromList xs
 #endif
 
 combineMappings :: AT.Value -> AT.Value -> AT.Value
