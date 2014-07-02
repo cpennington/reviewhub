@@ -25,6 +25,12 @@ import Network.Wai.Logger (clockDateCacher)
 import Data.Default (def)
 import Yesod.Core.Types (loggerSet, Logger (Logger))
 
+import qualified Data.HashMap.Strict as H
+import qualified Data.Aeson.Types as AT
+#ifndef DEVELOPMENT
+import qualified Web.Heroku
+#endif
+
 -- Import all relevant handler modules here.
 -- Don't forget to add new modules to your cabal file!
 import Handler.Home
@@ -62,8 +68,9 @@ makeFoundation :: AppConfig DefaultEnv Extra -> IO App
 makeFoundation conf = do
     manager <- newManager
     s <- staticSite
+    hconfig <- loadHerokuConfig
     dbconf <- withYamlEnvironment "config/postgresql.yml" (appEnv conf)
-              Database.Persist.loadConfig >>=
+              (Database.Persist.loadConfig . combineMappings hconfig) >>=
               Database.Persist.applyEnv
     p <- Database.Persist.createPoolConfig (dbconf :: Settings.PersistConf)
 
@@ -99,3 +106,24 @@ getApplicationDev =
     loader = Yesod.Default.Config.loadConfig (configSettings Development)
         { csParseExtra = parseExtra
         }
+
+#ifndef DEVELOPMENT
+canonicalizeKey :: (Text, val) -> (Text, val)
+canonicalizeKey ("dbname", val) = ("database", val)
+canonicalizeKey pair = pair
+
+toMapping :: [(Text, Text)] -> AT.Value
+toMapping xs = AT.Object $ H.fromList $ map (\(key, val) -> (key, AT.String val)) xs
+#endif
+
+combineMappings :: AT.Value -> AT.Value -> AT.Value
+combineMappings (AT.Object m1) (AT.Object m2) = AT.Object $ m1 `H.union` m2
+combineMappings _ _ = error "Data.Object is not a Mapping."
+
+loadHerokuConfig :: IO AT.Value
+loadHerokuConfig = do
+#ifdef DEVELOPMENT
+   return $ AT.Object H.empty
+#else
+   Web.Heroku.dbConnParams >>= return . toMapping . map canonicalizeKey
+#endif

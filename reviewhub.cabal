@@ -67,6 +67,8 @@ library
                  , monad-logger                  >= 0.3        && < 0.4
                  , fast-logger                   >= 2.1.4      && < 2.2
                  , wai-logger                    >= 2.1        && < 2.2
+                 , heroku                        == 0.1.*
+                 , unordered-containers          == 0.2.*
 
 executable         reviewhub
     if flag(library-only)
