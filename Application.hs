@@ -36,6 +36,7 @@ import qualified Web.Heroku
 -- Import all relevant handler modules here.
 -- Don't forget to add new modules to your cabal file!
 import Handler.Home
+import Handler.Review
 
 -- This line actually creates our YesodDispatch instance. It is the second half
 -- of the call to mkYesodData which occurs in Foundation.hs. Please see the
@@ -59,7 +60,7 @@ makeApplication conf = do
         , destination = RequestLogger.Logger $ loggerSet $ appLogger foundation
         }
 
-    -- Create the WAI application and apply middlewares
+    -- Create the WAI application and apply myiddlewares
     app <- toWaiAppPlain foundation
     let logFunc = messageLoggerSource foundation (appLogger foundation)
     return (logWare $ defaultMiddlewaresNoLogging app, logFunc)
