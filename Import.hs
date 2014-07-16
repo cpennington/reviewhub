@@ -3,7 +3,7 @@ module Import
     ) where
 
 import           Prelude              as Import hiding (head, init, last,
-                                                 readFile, tail, writeFile)
+                                                 readFile, tail, writeFile, lines)
 import           Yesod                as Import hiding (Route (..))
 
 import           Control.Applicative  as Import (pure, (<$>), (<*>))

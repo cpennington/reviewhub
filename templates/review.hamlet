@@ -1,0 +1,14 @@
+<div .diff .diff-side-by-side>
+    <div .display-toggle>
+    $forall hunk <- hunks
+        <div .diff-hunk>
+            <div .diff-left>
+                $forall (number, line) <- sourceLines source hunk
+                    <div .line>
+                        <span .line-number>#{number}
+                        <span .line-text>#{line}
+            <div .diff-right>
+                $forall (number, line) <- destLines hunk
+                    <div .line>
+                        <span .line-number>#{number}
+                        <span .line-text>#{line}

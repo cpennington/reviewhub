@@ -1,0 +1,5 @@
+$(function() {
+    $('.diff .display-toggle').click(function() {
+        $(this).parent('.diff').toggleClass("diff-unified diff-side-by-side")
+    })
+})

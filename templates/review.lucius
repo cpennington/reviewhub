@@ -1,0 +1,35 @@
+.diff-left {
+    background: #fdd;
+}
+
+.diff-right {
+    background: #dfd;
+}
+
+.diff-unified {
+    .display-toggle::after {
+        content: "View Side-by-side";
+    }
+}
+
+.diff-side-by-side {
+    .display-toggle::after {
+        content: "View Unified";
+    }
+    .diff-hunk {
+        display: table-row;
+
+        .diff-left {
+            display: table-cell;
+            width: 49%;
+        }
+        .diff-right {
+            display: table-cell;
+            width: 49%;
+        }
+
+        .line:first-child {
+            top: 0;
+        }
+    }
+}
