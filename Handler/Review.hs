@@ -3,6 +3,14 @@ module Handler.Review where
 import Import
 
 import Data.Text (pack, lines)
+import Data.List (transpose, groupBy, head)
+import Data.Maybe (catMaybes, listToMaybe)
+import Data.Function (on)
+import Control.Arrow ((&&&))
+
+import Debug.Trace
+
+traceShowId a = trace (show a) a
 
 {- source.txt
 Line 1
@@ -77,6 +85,26 @@ Line 20
 -}
 
 data Hunk = Hunk (Int, Int) (Int, Int) Text
+    deriving (Eq, Show)
+
+data Context = Context (Maybe Hunk) (Maybe Hunk)
+data FileDiffPart = Change [DiffLine] [DiffLine]
+                  | InitialContext [ContextLine]
+                  | InternalContext [ContextLine]
+                  | FinalContext [ContextLine]
+
+data FileDiffTag = Within Hunk
+                 | Before
+                 | Between Hunk Hunk
+                 | After Hunk
+    deriving (Eq, Show)
+
+type NumberedLine = (Int, Text)
+type DiffLine = (Int, Text)
+type ContextLine = (Int, Int, Text)
+type Source = [NumberedLine]
+
+contextSize = 3
 
 dummySourceFile :: Text
 dummySourceFile = pack $ unlines ["Line " ++ show l | l <- [1..20]]
@@ -90,16 +118,49 @@ dummyHunks = [
     Hunk (16, 1) (15, 3) (pack "Replace a\nReplace b\nReplace c") -- Replacement with more lines
     ]
 
-sourceLines :: Text -> Hunk -> [(Int, Text)]
-sourceLines source (Hunk (sStart, sLength) _ _) = zip [sStart..] $ take sLength $ drop (sStart - 1) $ lines source
+sourceLines :: Source -> Hunk -> [NumberedLine]
+sourceLines source (Hunk (lStart, lLength) _ _) = take lLength $ drop (lStart - 1) $ source
 
-destLines :: Hunk -> [(Int, Text)]
-destLines (Hunk _ (dStart, _) text) = zip [dStart..] $ lines text
+destLines :: Hunk -> [NumberedLine]
+destLines (Hunk _ (rStart, _) text) = zip [rStart..] $ lines text
+
+fillInContext :: Source -> [Hunk] -> [FileDiffPart]
+fillInContext source hs = map (uncurry mkDiffPart) $ groupAList $ traceShowId $ lineTags hs source
+
+groupAList :: (Eq a) => [(a, b)] -> [(a, [b])]
+groupAList xs = map (fst . head &&& map snd) $ groupBy ((==) `on` fst) xs
+
+mkDiffPart :: FileDiffTag -> [NumberedLine] -> FileDiffPart
+mkDiffPart Before ls = InitialContext $ addContext ls [1..]
+mkDiffPart (Within (Hunk _ (rStart, _) txt)) ls = Change ls (zip [rStart..] $ lines txt)
+mkDiffPart (After (Hunk _ (start, length) _)) ls = FinalContext $ addContext ls [start + length..]
+mkDiffPart (Between (Hunk _ (start, length) _) _) ls = InternalContext $ addContext ls [start + length..]
+
+addContext :: [NumberedLine] -> [Int] -> [ContextLine]
+addContext src destNums = zip3 srcNums destNums srcLines
+    where (srcNums, srcLines) = unzip src
+
+-- Must be called with a non-empty sorted list of hunks
+lineTags :: [Hunk] -> [NumberedLine] -> [(FileDiffTag, NumberedLine)]
+lineTags hunks lines = go Nothing hunks lines
+    where
+        go _ _ [] = []
+        go Nothing [] ls = zip (repeat Before) ls
+        go (Just h) [] ls = zip (repeat $ After h) ls
+        go prev (h@(Hunk (start, len) (_, _) _):hs) (l@(n, t):ls)
+            | n < start = (maybe Before (\h' -> Between h h') prev, l):(go prev (h:hs) ls)
+            | n >= start && n <= start + len = (Within h, l):(go (Just h) (h:hs) ls)
+            | n > start + len = (maybeHead (After h) (Between h) hs, l):(go (Just h) hs ls)
+
+maybeHead def f = maybe def f . listToMaybe
 
 getReviewR :: PullRequest -> Handler Html
 getReviewR pr = do
     let hunks = dummyHunks -- TODO: Replace this w/ a request to the github api and diff parsing
         source = dummySourceFile -- TODO: Replace this w/ a request to github api
+        fileparts = fillInContext (zip [1..] $ lines source) hunks
+        diffLines isSrc lines = $(whamletFile "templates/diff-lines.hamlet")
+        contextLines lines = $(whamletFile "templates/context-lines.hamlet")
     defaultLayout $ do
         setTitle $ toHtml $ "Reviewing " ++ show pr
         addScriptRemote "//code.jquery.com/jquery-2.1.1.min.js"

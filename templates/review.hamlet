@@ -1,14 +1,29 @@
 <div .diff .diff-side-by-side>
     <div .display-toggle>
-    $forall hunk <- hunks
-        <div .diff-hunk>
-            <div .diff-left>
-                $forall (number, line) <- sourceLines source hunk
-                    <div .line>
-                        <span .line-number>#{number}
-                        <span .line-text>#{line}
-            <div .diff-right>
-                $forall (number, line) <- destLines hunk
-                    <div .line>
-                        <span .line-number>#{number}
-                        <span .line-text>#{line}
+    $forall filepart <- fileparts
+        $case filepart
+            $of Change leftLines rightLines
+                <div .diff-hunk>
+                    <div .diff-left>
+                        ^{diffLines True leftLines}
+                    <div .diff-right>
+                        ^{diffLines False rightLines}
+            $of InitialContext lines
+                <div .diff-context .diff-initial>
+                    <div .diff-left>
+                        ^{contextLines lines}
+                    <div .diff-right>
+                        ^{contextLines lines}
+            $of InternalContext lines
+                <div .diff-context .diff-internal>
+                    <div .diff-left>
+                        ^{contextLines lines}
+                    <div .diff-right>
+                        ^{contextLines lines}
+            $of FinalContext lines
+                <div .diff-context .diff-final>
+                    <div .diff-left>
+                        ^{contextLines lines}
+                    <div .diff-right>
+                        ^{contextLines lines}
+

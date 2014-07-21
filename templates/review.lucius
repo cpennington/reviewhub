@@ -1,34 +1,80 @@
-.diff-left {
-    background: #fdd;
-}
+.diff-hunk {
+    .diff-left {
+        background: #fdd;
+    }
 
-.diff-right {
-    background: #dfd;
+    .diff-right {
+        background: #dfd;
+    }
 }
 
 .diff-unified {
+    display: table;
+
     .display-toggle::after {
         content: "View Side-by-side";
+    }
+
+    .diff-context {
+        .diff-right {
+            display: none;
+        }
+        .diff-left {
+            display: table-row;
+
+            .left-number, .right-number, .line-text {
+                display: table-cell;
+                border: 1px solid black;
+            }
+        }
+    }
+
+    .diff-hunk .diff-line {
+        display: table-row;
+
+        .line-number, .line-text, .spacer {
+            display: table-cell;
+            border: 1px solid black;
+        }
     }
 }
 
 .diff-side-by-side {
+    display: table;
+
     .display-toggle::after {
         content: "View Unified";
     }
-    .diff-hunk {
+
+    .spacer {
+        display: none;
+    }
+
+    .diff-context {
+        .diff-right .left-number {
+            display: none;
+        }
+        .diff-left .right-number {
+            display: none;
+        }
+    }
+
+    .diff-hunk, .diff-context {
         display: table-row;
 
         .diff-left {
             display: table-cell;
             width: 49%;
+            border: 1px solid black;
         }
+
         .diff-right {
             display: table-cell;
             width: 49%;
+            border: 1px solid black;
         }
 
-        .line:first-child {
+        .diff-line:first-child {
             top: 0;
         }
     }
