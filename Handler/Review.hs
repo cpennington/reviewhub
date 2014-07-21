@@ -8,6 +8,11 @@ import Data.Maybe (catMaybes, listToMaybe)
 import Data.Function (on)
 import Control.Arrow ((&&&))
 
+import Github.Data.Definitions (DetailedPullRequest(..))
+import Github.PullRequests (pullRequest)
+import Network.Wreq (getWith, defaults, header)
+import Control.Lens ((&), (.~))
+
 import Debug.Trace
 
 traceShowId a = trace (show a) a
@@ -154,11 +159,22 @@ lineTags hunks lines = go Nothing hunks lines
 
 maybeHead def f = maybe def f . listToMaybe
 
+hunksForPR :: PullRequest -> IO ([Hunk], Source)
+hunksForPR pr = do
+    prMetaResult <- pullRequest "edx" "edx-platform" pr
+    prMeta <- case prMetaResult of
+        Left err -> error $ show err
+        Right prMeta -> return $ prMeta
+    let diffOpts = defaults & header "Accept" .~ ["application/vnd.github.v3.diff"]
+    diff <- getWith diffOpts $ detailedPullRequestDiffUrl prMeta
+    let hunks = undefined
+    source <- undefined
+    return (hunks, source)
+
 getReviewR :: PullRequest -> Handler Html
 getReviewR pr = do
-    let hunks = dummyHunks -- TODO: Replace this w/ a request to the github api and diff parsing
-        source = dummySourceFile -- TODO: Replace this w/ a request to github api
-        fileparts = fillInContext (zip [1..] $ lines source) hunks
+    (hunks, source) <- liftIO $ hunksForPR pr
+    let fileparts = fillInContext source hunks
         diffLines isSrc lines = $(whamletFile "templates/diff-lines.hamlet")
         contextLines lines = $(whamletFile "templates/context-lines.hamlet")
     defaultLayout $ do

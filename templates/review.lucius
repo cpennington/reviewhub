@@ -24,7 +24,6 @@
 
             .left-number, .right-number, .line-text {
                 display: table-cell;
-                border: 1px solid black;
             }
         }
     }
@@ -34,7 +33,6 @@
 
         .line-number, .line-text, .spacer {
             display: table-cell;
-            border: 1px solid black;
         }
     }
 }
@@ -65,13 +63,11 @@
         .diff-left {
             display: table-cell;
             width: 49%;
-            border: 1px solid black;
         }
 
         .diff-right {
             display: table-cell;
             width: 49%;
-            border: 1px solid black;
         }
 
         .diff-line:first-child {
