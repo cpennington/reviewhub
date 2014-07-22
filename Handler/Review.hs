@@ -11,10 +11,13 @@ import Data.Maybe (catMaybes, listToMaybe)
 import Data.Function (on)
 import Control.Arrow ((&&&))
 
-import Github.Data.Definitions (DetailedPullRequest(..))
+import Github.Data.Definitions (DetailedPullRequest(..), PullRequestCommit(..), Tree(..), GitTree(..), Blob(..))
 import Github.PullRequests (pullRequest)
+import Github.GitData.Trees (nestedTree)
+import Github.GitData.Blobs (blob)
 import Network.Wreq (getWith, defaults, header, responseBody)
 import Control.Lens ((&), (.~), (^.))
+import Codec.Binary.Base64.String (decode)
 
 import Text.Diff.Parse (parseDiff)
 import qualified Text.Diff.Parse.Types as D
@@ -182,7 +185,7 @@ trimContext hunk = trim (D.rangeStartingLineNumber $ D.hunkSourceRange hunk) (D.
 
 
 diffToHunks :: D.FileDelta -> [Hunk]
-diffToHunks delta = trimContext $ head $ D.fileDeltaHunks delta
+diffToHunks delta = concatMap trimContext $ D.fileDeltaHunks delta
 
 hunksForPR :: PullRequest -> IO ([Hunk], Source)
 hunksForPR pr = do
@@ -192,11 +195,26 @@ hunksForPR pr = do
         Right prMeta -> return $ prMeta
     let diffOpts = defaults & header "Accept-Charset" .~ ["utf-8"]
     diffResponse <- getWith diffOpts $ traceShowId $ detailedPullRequestDiffUrl prMeta
-    hunks <- case parseDiff $ traceShowId $ decodeUtf8 $ toStrict (diffResponse ^. responseBody) of
+    case parseDiff $ traceShowId $ decodeUtf8 $ toStrict (diffResponse ^. responseBody) of
         Left err -> error $ "Error parsing diff: " ++ err
-        Right deltas -> return $ concatMap diffToHunks deltas
-    source <- undefined
-    return (hunks, source)
+        Right deltas -> do
+            let prBase = detailedPullRequestBase prMeta
+            treeResponse <- nestedTree "edx" "edx-platform" $ pullRequestCommitSha prBase
+            tree <- case treeResponse of
+                Left err -> error $ "Error retrieving tree: " ++ show err
+                Right tree -> return tree
+            let hunks = diffToHunks $ head deltas
+                maybeBlobSha = lookup (D.fileDeltaSourceFile $ head deltas) (map (pack . gitTreePath &&& gitTreeSha) $ treeGitTrees tree)
+            source <- case maybeBlobSha of
+                Nothing -> error "unable to load source tree"
+                Just blobSha -> do
+                    blobDataResponse <- blob "edx" "edx-platform" blobSha
+                    case blobDataResponse of
+                        Left err -> error $ "Error retrieving blob: " ++ show err
+                        Right blobData -> case blobEncoding blobData of
+                            "utf-8" -> return $ pack $ blobContent blobData
+                            "base64" -> return $ pack $ decode $ blobContent blobData
+            return $ (hunks, zip [1..] $ lines source)
 
 getReviewR :: PullRequest -> Handler Html
 getReviewR pr = do
