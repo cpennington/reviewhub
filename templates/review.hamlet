@@ -11,19 +11,24 @@
             $of InitialContext lines
                 <div .diff-context .diff-initial>
                     <div .diff-left>
-                        ^{contextLines lines}
+                        ^{contextLines (last context lines)}
                     <div .diff-right>
-                        ^{contextLines lines}
+                        ^{contextLines (last context lines)}
             $of InternalContext lines
                 <div .diff-context .diff-internal>
                     <div .diff-left>
-                        ^{contextLines lines}
+                        ^{contextLines (take context lines)}
                     <div .diff-right>
-                        ^{contextLines lines}
+                        ^{contextLines (take context lines)}
+
+                    <div .diff-left>
+                        ^{contextLines (last context lines)}
+                    <div .diff-right>
+                        ^{contextLines (last context lines)}
             $of FinalContext lines
                 <div .diff-context .diff-final>
                     <div .diff-left>
-                        ^{contextLines lines}
+                        ^{contextLines (take context lines)}
                     <div .diff-right>
-                        ^{contextLines lines}
+                        ^{contextLines (take context lines)}
 

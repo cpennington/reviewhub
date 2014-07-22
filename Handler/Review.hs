@@ -118,7 +118,9 @@ type DiffLine = (Int, Text)
 type ContextLine = (Int, Int, Text)
 type Source = [NumberedLine]
 
-contextSize = 3
+context = 3
+
+last n = reverse . take n . reverse
 
 dummySourceFile :: Text
 dummySourceFile = pack $ unlines ["Line " ++ show l | l <- [1..20]]
@@ -139,7 +141,10 @@ destLines :: Hunk -> [NumberedLine]
 destLines (Hunk _ (rStart, _) text) = zip [rStart..] text
 
 fillInContext :: Source -> [Hunk] -> [FileDiffPart]
-fillInContext source hs = map (uncurry mkDiffPart) $ groupAList $ traceShowId $ lineTags hs source
+fillInContext source hs = (map (uncurry mkDiffPart) $ groupAList taggedLines) ++ (map mkTrailingHunk remainingHunks)
+    where
+        (taggedLines, remainingHunks) = lineTags hs source
+        mkTrailingHunk (Hunk _ (rStart, _) txt) = Change [] (zip [rStart..] txt)
 
 groupAList :: (Eq a) => [(a, b)] -> [(a, [b])]
 groupAList xs = map (fst . head &&& map snd) $ groupBy ((==) `on` fst) xs
@@ -155,16 +160,25 @@ addContext src destNums = zip3 srcNums destNums srcLines
     where (srcNums, srcLines) = unzip src
 
 -- Must be called with a non-empty sorted list of hunks
-lineTags :: [Hunk] -> [NumberedLine] -> [(FileDiffTag, NumberedLine)]
+lineTags :: [Hunk] -> [NumberedLine] -> ([(FileDiffTag, NumberedLine)], [Hunk])
 lineTags hunks lines = go Nothing hunks lines
     where
-        go _ _ [] = []
-        go Nothing [] ls = zip (repeat Before) ls
-        go (Just h) [] ls = zip (repeat $ After h) ls
+        go _ hs [] = ([], hs)
+        go Nothing [] ls = (zip (repeat Before) ls, [])
+        go (Just h) [] ls = (zip (repeat $ After h) ls, [])
         go prev (h@(Hunk (start, len) (_, _) _):hs) (l@(n, t):ls)
-            | n < start = (maybe Before (\h' -> Between h h') prev, l):(go prev (h:hs) ls)
-            | n >= start && n <= start + len = (Within h, l):(go (Just h) (h:hs) ls)
-            | n > start + len = (maybeHead (After h) (Between h) hs, l):(go (Just h) hs ls)
+            | n < start = let
+                l' = (maybe Before (\h' -> Between h h') prev, l)
+                (ls', hs') = go prev (h:hs) ls
+                in (l':ls', hs')
+            | n >= start && n <= start + len = let
+                l' = (Within h, l)
+                (ls', hs') = go (Just h) (h:hs) ls
+                in (l':ls', hs')
+            | n > start + len = let
+                l' = (maybeHead (After h) (Between h) hs, l)
+                (ls', hs') = go (Just h) hs ls
+                in (l':ls', hs')
 
 maybeHead def f = maybe def f . listToMaybe
 
@@ -194,8 +208,8 @@ hunksForPR pr = do
         Left err -> error $ show err
         Right prMeta -> return $ prMeta
     let diffOpts = defaults & header "Accept-Charset" .~ ["utf-8"]
-    diffResponse <- getWith diffOpts $ traceShowId $ detailedPullRequestDiffUrl prMeta
-    case parseDiff $ traceShowId $ decodeUtf8 $ toStrict (diffResponse ^. responseBody) of
+    diffResponse <- getWith diffOpts $ detailedPullRequestDiffUrl prMeta
+    case parseDiff $ decodeUtf8 $ toStrict (diffResponse ^. responseBody) of
         Left err -> error $ "Error parsing diff: " ++ err
         Right deltas -> do
             let prBase = detailedPullRequestBase prMeta
@@ -203,7 +217,7 @@ hunksForPR pr = do
             tree <- case treeResponse of
                 Left err -> error $ "Error retrieving tree: " ++ show err
                 Right tree -> return tree
-            let hunks = diffToHunks $ head deltas
+            let hunks = traceShowId $ diffToHunks $ traceShowId $ head deltas
                 maybeBlobSha = lookup (D.fileDeltaSourceFile $ head deltas) (map (pack . gitTreePath &&& gitTreeSha) $ treeGitTrees tree)
             source <- case maybeBlobSha of
                 Nothing -> error "unable to load source tree"
