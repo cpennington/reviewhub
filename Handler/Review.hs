@@ -1,8 +1,11 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Handler.Review where
 
 import Import
 
 import Data.Text (pack, lines)
+import Data.Text.Encoding (decodeUtf8)
+import Data.ByteString.Lazy (toStrict)
 import Data.List (transpose, groupBy, head)
 import Data.Maybe (catMaybes, listToMaybe)
 import Data.Function (on)
@@ -10,8 +13,11 @@ import Control.Arrow ((&&&))
 
 import Github.Data.Definitions (DetailedPullRequest(..))
 import Github.PullRequests (pullRequest)
-import Network.Wreq (getWith, defaults, header)
-import Control.Lens ((&), (.~))
+import Network.Wreq (getWith, defaults, header, responseBody)
+import Control.Lens ((&), (.~), (^.))
+
+import Text.Diff.Parse (parseDiff)
+import qualified Text.Diff.Parse.Types as D
 
 import Debug.Trace
 
@@ -89,7 +95,7 @@ Line 20
 +Replace c
 -}
 
-data Hunk = Hunk (Int, Int) (Int, Int) Text
+data Hunk = Hunk (Int, Int) (Int, Int) [Text]
     deriving (Eq, Show)
 
 data Context = Context (Maybe Hunk) (Maybe Hunk)
@@ -116,18 +122,18 @@ dummySourceFile = pack $ unlines ["Line " ++ show l | l <- [1..20]]
 
 dummyHunks :: [Hunk]
 dummyHunks = [
-    Hunk (2, 1) (2, 1) (pack "Replace 2"), -- Single line substitution
-    Hunk (4, 0) (5, 2) (pack "Insert 4.5\nInsert 4.6"), -- Insertion
-    Hunk (6, 2) (7, 0) (pack ""), -- Deletion
-    Hunk (10, 3) (10, 2) (pack "Replace x\nReplace y"), -- Replacement with fewer lines
-    Hunk (16, 1) (15, 3) (pack "Replace a\nReplace b\nReplace c") -- Replacement with more lines
+    Hunk (2, 1) (2, 1) ["Replace 2"], -- Single line substitution
+    Hunk (4, 0) (5, 2) ["Insert 4.5", "Insert 4.6"], -- Insertion
+    Hunk (6, 2) (7, 0) [], -- Deletion
+    Hunk (10, 3) (10, 2) ["Replace x", "Replace y"], -- Replacement with fewer lines
+    Hunk (16, 1) (15, 3) ["Replace a", "Replace b", "Replace c"] -- Replacement with more lines
     ]
 
 sourceLines :: Source -> Hunk -> [NumberedLine]
 sourceLines source (Hunk (lStart, lLength) _ _) = take lLength $ drop (lStart - 1) $ source
 
 destLines :: Hunk -> [NumberedLine]
-destLines (Hunk _ (rStart, _) text) = zip [rStart..] $ lines text
+destLines (Hunk _ (rStart, _) text) = zip [rStart..] text
 
 fillInContext :: Source -> [Hunk] -> [FileDiffPart]
 fillInContext source hs = map (uncurry mkDiffPart) $ groupAList $ traceShowId $ lineTags hs source
@@ -137,7 +143,7 @@ groupAList xs = map (fst . head &&& map snd) $ groupBy ((==) `on` fst) xs
 
 mkDiffPart :: FileDiffTag -> [NumberedLine] -> FileDiffPart
 mkDiffPart Before ls = InitialContext $ addContext ls [1..]
-mkDiffPart (Within (Hunk _ (rStart, _) txt)) ls = Change ls (zip [rStart..] $ lines txt)
+mkDiffPart (Within (Hunk _ (rStart, _) txt)) ls = Change ls (zip [rStart..] txt)
 mkDiffPart (After (Hunk _ (start, length) _)) ls = FinalContext $ addContext ls [start + length..]
 mkDiffPart (Between (Hunk _ (start, length) _) _) ls = InternalContext $ addContext ls [start + length..]
 
@@ -159,15 +165,36 @@ lineTags hunks lines = go Nothing hunks lines
 
 maybeHead def f = maybe def f . listToMaybe
 
+trimContext :: D.Hunk -> [Hunk]
+trimContext hunk = trim (D.rangeStartingLineNumber $ D.hunkSourceRange hunk) (D.rangeStartingLineNumber $ D.hunkDestRange hunk) groups
+    where
+        isContext = (D.Context ==) . D.lineAnnotation
+        groups = groupBy ((==) `on` isContext) $ D.hunkLines hunk
+        trim _ _ [] = []
+        trim srcStart dstStart (g:gs)
+            | isContext $ head g = trim (srcStart + length g) (dstStart + length g) gs
+            | otherwise = hunk':rest
+                where
+                    hunk' = Hunk (srcStart, length removed) (dstStart, length added) (map D.lineContent added)
+                    rest = trim (srcStart + length removed) (dstStart + length added) gs
+                    added = filter ((D.Added ==) . D.lineAnnotation) g
+                    removed = filter ((D.Removed ==) . D.lineAnnotation) g
+
+
+diffToHunks :: D.FileDelta -> [Hunk]
+diffToHunks delta = trimContext $ head $ D.fileDeltaHunks delta
+
 hunksForPR :: PullRequest -> IO ([Hunk], Source)
 hunksForPR pr = do
     prMetaResult <- pullRequest "edx" "edx-platform" pr
     prMeta <- case prMetaResult of
         Left err -> error $ show err
         Right prMeta -> return $ prMeta
-    let diffOpts = defaults & header "Accept" .~ ["application/vnd.github.v3.diff"]
-    diff <- getWith diffOpts $ detailedPullRequestDiffUrl prMeta
-    let hunks = undefined
+    let diffOpts = defaults & header "Accept-Charset" .~ ["utf-8"]
+    diffResponse <- getWith diffOpts $ traceShowId $ detailedPullRequestDiffUrl prMeta
+    hunks <- case parseDiff $ traceShowId $ decodeUtf8 $ toStrict (diffResponse ^. responseBody) of
+        Left err -> error $ "Error parsing diff: " ++ err
+        Right deltas -> return $ concatMap diffToHunks deltas
     source <- undefined
     return (hunks, source)
 
