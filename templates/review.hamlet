@@ -15,16 +15,24 @@
                     <div .diff-right>
                         ^{contextLines (last context lines)}
             $of InternalContext lines
-                <div .diff-context .diff-internal>
-                    <div .diff-left>
-                        ^{contextLines (take context lines)}
-                    <div .diff-right>
-                        ^{contextLines (take context lines)}
+                $if (>) (length lines) (2 * context)
+                    <div .diff-context .diff-internal>
+                        <div .diff-left>
+                            ^{contextLines (take context lines)}
+                        <div .diff-right>
+                            ^{contextLines (take context lines)}
 
-                    <div .diff-left>
-                        ^{contextLines (last context lines)}
-                    <div .diff-right>
-                        ^{contextLines (last context lines)}
+                    <div .diff-context .diff-internal>
+                        <div .diff-left>
+                            ^{contextLines (last context lines)}
+                        <div .diff-right>
+                            ^{contextLines (last context lines)}
+                $else
+                    <div .diff-context .diff-internal>
+                        <div .diff-left>
+                            ^{contextLines lines}
+                        <div .diff-right>
+                            ^{contextLines lines}
             $of FinalContext lines
                 <div .diff-context .diff-final>
                     <div .diff-left>
