@@ -1,41 +1,45 @@
-<div .diff .diff-side-by-side>
-    $forall filepart <- fileparts
-        $case filepart
-            $of Change leftLines rightLines
-                <div .diff-hunk>
-                    <div .diff-left>
-                        ^{diffLines True leftLines}
-                    <div .diff-right>
-                        ^{diffLines False rightLines}
-            $of InitialContext lines
-                <div .diff-context .diff-initial>
-                    <div .diff-left>
-                        ^{contextLines (last context lines)}
-                    <div .diff-right>
-                        ^{contextLines (last context lines)}
-            $of InternalContext lines
-                $if (>) (length lines) (2 * context)
-                    <div .diff-context .diff-internal>
-                        <div .diff-left>
-                            ^{contextLines (take context lines)}
-                        <div .diff-right>
-                            ^{contextLines (take context lines)}
-
-                    <div .diff-context .diff-internal>
-                        <div .diff-left>
+<table .diff .diff-side-by-side>
+    $forall (fileDelta, fileparts) <- files
+        <thead .diff-header>
+            <tr>
+                <th .diff-left-file>#{D.fileDeltaSourceFile fileDelta}
+                <th .diff-right-file>#{D.fileDeltaDestFile fileDelta}
+        $forall filepart <- fileparts
+            $case filepart
+                $of Change leftLines rightLines
+                    <tr .diff-hunk>
+                        <td .diff-left>
+                            ^{diffLines True leftLines}
+                        <td .diff-right>
+                            ^{diffLines False rightLines}
+                $of InitialContext lines
+                    <tr .diff-context .diff-initial>
+                        <td .diff-left>
                             ^{contextLines (last context lines)}
-                        <div .diff-right>
+                        <td .diff-right>
                             ^{contextLines (last context lines)}
-                $else
-                    <div .diff-context .diff-internal>
-                        <div .diff-left>
-                            ^{contextLines lines}
-                        <div .diff-right>
-                            ^{contextLines lines}
-            $of FinalContext lines
-                <div .diff-context .diff-final>
-                    <div .diff-left>
-                        ^{contextLines (take context lines)}
-                    <div .diff-right>
-                        ^{contextLines (take context lines)}
+                $of InternalContext lines
+                    $if (>) (length lines) (2 * context)
+                        <tr .diff-context .diff-internal>
+                            <td .diff-left>
+                                ^{contextLines (take context lines)}
+                            <td .diff-right>
+                                ^{contextLines (take context lines)}
 
+                        <tr .diff-context .diff-internal>
+                            <td .diff-left>
+                                ^{contextLines (last context lines)}
+                            <td .diff-right>
+                                ^{contextLines (last context lines)}
+                    $else
+                        <tr .diff-context .diff-internal>
+                            <td .diff-left>
+                                ^{contextLines lines}
+                            <td .diff-right>
+                                ^{contextLines lines}
+                $of FinalContext lines
+                    <tr .diff-context .diff-final>
+                        <td .diff-left>
+                            ^{contextLines (take context lines)}
+                        <td .diff-right>
+                            ^{contextLines (take context lines)}

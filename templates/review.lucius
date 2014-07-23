@@ -38,12 +38,6 @@
 }
 
 .diff-side-by-side {
-    display: table;
-
-    .display-toggle::after {
-        content: "View Unified";
-    }
-
     .spacer {
         display: none;
     }
@@ -58,15 +52,11 @@
     }
 
     .diff-hunk, .diff-context {
-        display: table-row;
-
         .diff-left {
-            display: table-cell;
             width: 49%;
         }
 
         .diff-right {
-            display: table-cell;
             width: 49%;
         }
 

@@ -201,8 +201,24 @@ trimContext hunk = trim (D.rangeStartingLineNumber $ D.hunkSourceRange hunk) (D.
 diffToHunks :: D.FileDelta -> [Hunk]
 diffToHunks delta = concatMap trimContext $ D.fileDeltaHunks delta
 
-hunksForPR :: PullRequest -> IO ([Hunk], Source)
-hunksForPR pr = do
+fileParts :: Tree -> D.FileDelta -> IO [FileDiffPart]
+fileParts tree delta = do
+    let hunks = diffToHunks delta
+        maybeBlobSha = lookup (D.fileDeltaSourceFile delta) (map (pack . gitTreePath &&& gitTreeSha) $ treeGitTrees tree)
+    source <- case maybeBlobSha of
+        Nothing -> return ""
+        Just blobSha -> do
+            blobDataResponse <- blob "edx" "edx-platform" blobSha
+            case blobDataResponse of
+                Left err -> error $ "Error retrieving blob: " ++ show err
+                Right blobData -> case blobEncoding blobData of
+                    "utf-8" -> return $ pack $ blobContent blobData
+                    "base64" -> return $ pack $ decode $ blobContent blobData
+    return $ fillInContext (zip [1..] $ lines source) hunks
+
+
+filesForPR :: PullRequest -> IO [(D.FileDelta, [FileDiffPart])]
+filesForPR pr = do
     prMetaResult <- pullRequest "edx" "edx-platform" pr
     prMeta <- case prMetaResult of
         Left err -> error $ show err
@@ -217,24 +233,13 @@ hunksForPR pr = do
             tree <- case treeResponse of
                 Left err -> error $ "Error retrieving tree: " ++ show err
                 Right tree -> return tree
-            let hunks = traceShowId $ diffToHunks $ traceShowId $ head deltas
-                maybeBlobSha = lookup (D.fileDeltaSourceFile $ head deltas) (map (pack . gitTreePath &&& gitTreeSha) $ treeGitTrees tree)
-            source <- case maybeBlobSha of
-                Nothing -> error "unable to load source tree"
-                Just blobSha -> do
-                    blobDataResponse <- blob "edx" "edx-platform" blobSha
-                    case blobDataResponse of
-                        Left err -> error $ "Error retrieving blob: " ++ show err
-                        Right blobData -> case blobEncoding blobData of
-                            "utf-8" -> return $ pack $ blobContent blobData
-                            "base64" -> return $ pack $ decode $ blobContent blobData
-            return $ (hunks, zip [1..] $ lines source)
+            parts <- mapM (fileParts tree) deltas
+            return $ zip deltas parts
 
 getReviewR :: PullRequest -> Handler Html
 getReviewR pr = do
-    (hunks, source) <- liftIO $ hunksForPR pr
-    let fileparts = fillInContext source hunks
-        diffLines isSrc lines = $(whamletFile "templates/diff-lines.hamlet")
+    files <- liftIO $ filesForPR pr
+    let diffLines isSrc lines = $(whamletFile "templates/diff-lines.hamlet")
         contextLines lines = $(whamletFile "templates/context-lines.hamlet")
     defaultLayout $ do
         setTitle $ toHtml $ "Reviewing " ++ show pr
