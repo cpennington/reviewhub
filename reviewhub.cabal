@@ -76,6 +76,7 @@ library
                  , wreq == 0.1.*
                  , lens == 4.3.*
                  , base64-string == 0.2.*
+                 , either == 4.3.*
 
 executable         reviewhub
     if flag(library-only)

@@ -11,6 +11,7 @@ import Data.Maybe (catMaybes, listToMaybe)
 import Data.Function (on)
 import Control.Arrow ((&&&))
 
+import qualified Github.Data.Definitions as GH
 import Github.Data.Definitions (DetailedPullRequest(..), PullRequestCommit(..), Tree(..), GitTree(..), Blob(..))
 import Github.PullRequests (pullRequest)
 import Github.GitData.Trees (nestedTree)
@@ -18,6 +19,8 @@ import Github.GitData.Blobs (blob)
 import Network.Wreq (getWith, defaults, header, responseBody)
 import Control.Lens ((&), (.~), (^.))
 import Codec.Binary.Base64.String (decode)
+
+import Control.Monad.Trans.Either (EitherT(..), left, right, bimapEitherT, hoistEither)
 
 import Text.Diff.Parse (parseDiff)
 import qualified Text.Diff.Parse.Types as D
@@ -113,6 +116,9 @@ data FileDiffTag = Within Hunk
                  | After Hunk
     deriving (Eq, Show)
 
+data Error = GithubError GH.Error | ParseError String
+    deriving Show
+
 type NumberedLine = (Int, Text)
 type DiffLine = (Int, Text)
 type ContextLine = (Int, Int, Text)
@@ -201,47 +207,53 @@ trimContext hunk = trim (D.rangeStartingLineNumber $ D.hunkSourceRange hunk) (D.
 diffToHunks :: D.FileDelta -> [Hunk]
 diffToHunks delta = concatMap trimContext $ D.fileDeltaHunks delta
 
-fileParts :: Tree -> D.FileDelta -> IO [FileDiffPart]
+fileParts :: Tree -> D.FileDelta -> EitherT Error IO [FileDiffPart]
 fileParts tree delta = do
     let hunks = diffToHunks delta
         maybeBlobSha = lookup (D.fileDeltaSourceFile delta) (map (pack . gitTreePath &&& gitTreeSha) $ treeGitTrees tree)
     source <- case maybeBlobSha of
         Nothing -> return ""
         Just blobSha -> do
-            blobDataResponse <- blob "edx" "edx-platform" blobSha
-            case blobDataResponse of
-                Left err -> error $ "Error retrieving blob: " ++ show err
-                Right blobData -> case blobEncoding blobData of
-                    "utf-8" -> return $ pack $ blobContent blobData
-                    "base64" -> return $ pack $ decode $ blobContent blobData
+            blobData <- gh $ blob "edx" "edx-platform" blobSha
+            case blobEncoding blobData of
+                "utf-8" -> return $ pack $ blobContent blobData
+                "base64" -> return $ pack $ decode $ blobContent blobData
     return $ fillInContext (zip [1..] $ lines source) hunks
 
 
-filesForPR :: PullRequest -> IO [(D.FileDelta, [FileDiffPart])]
+filesForPR :: PullRequest -> EitherT Error IO [(D.FileDelta, [FileDiffPart])]
 filesForPR pr = do
-    prMetaResult <- pullRequest "edx" "edx-platform" pr
-    prMeta <- case prMetaResult of
-        Left err -> error $ show err
-        Right prMeta -> return $ prMeta
+    prMeta <- gh $ pullRequest "edx" "edx-platform" pr
     let diffOpts = defaults & header "Accept-Charset" .~ ["utf-8"]
-    diffResponse <- getWith diffOpts $ detailedPullRequestDiffUrl prMeta
-    case parseDiff $ decodeUtf8 $ toStrict (diffResponse ^. responseBody) of
-        Left err -> error $ "Error parsing diff: " ++ err
-        Right deltas -> do
-            let prBase = detailedPullRequestBase prMeta
-            treeResponse <- nestedTree "edx" "edx-platform" $ pullRequestCommitSha prBase
-            tree <- case treeResponse of
-                Left err -> error $ "Error retrieving tree: " ++ show err
-                Right tree -> return tree
-            parts <- mapM (fileParts tree) deltas
-            return $ zip deltas parts
+    diffResponse <- liftIO $ getWith diffOpts $ detailedPullRequestDiffUrl prMeta
+    deltas <- parse $ parseDiff $ decodeUtf8 $ toStrict (diffResponse ^. responseBody)
+    let prBase = detailedPullRequestBase prMeta
+    tree <- gh $ nestedTree "edx" "edx-platform" $ pullRequestCommitSha prBase
+    parts <- mapM (fileParts tree) deltas
+    return $ zip deltas parts
 
 getReviewR :: PullRequest -> Handler Html
 getReviewR pr = do
-    files <- liftIO $ filesForPR pr
-    let diffLines isSrc lines = $(whamletFile "templates/diff-lines.hamlet")
+    filesRes <- liftIO $ runEitherT $ filesForPR pr
+    let files = case filesRes of
+            Left err -> error $ show err
+            Right files -> files
+        diffLines isSrc lines = $(whamletFile "templates/diff-lines.hamlet")
         contextLines lines = $(whamletFile "templates/context-lines.hamlet")
     defaultLayout $ do
         setTitle $ toHtml $ "Reviewing " ++ show pr
         addScriptRemote "//code.jquery.com/jquery-2.1.1.min.js"
         $(widgetFile "review")
+
+ioEither :: IO (Either e a) -> EitherT e IO a
+ioEither action = do
+    result <- liftIO action
+    case result of
+        Left e -> left e
+        Right a -> right a
+
+gh :: IO (Either GH.Error a) -> EitherT Error IO a
+gh action = bimapEitherT GithubError id $ ioEither action
+
+parse :: Either String a -> EitherT Error IO a
+parse action = bimapEitherT ParseError id $ hoistEither action
