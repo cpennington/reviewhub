@@ -1,0 +1,8 @@
+$forall (number, line) <- lines
+    <div .diff-line>
+        $if not isSrc
+            <span .spacer>
+        <span .line-number>#{number}
+        $if isSrc
+            <span .spacer>
+        <span .line-text>#{line}

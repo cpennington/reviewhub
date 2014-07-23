@@ -1,0 +1,5 @@
+$forall (leftNo, rightNo, line) <- lines
+    <div .context-line>
+        <span .left-number>#{leftNo}
+        <span .right-number>#{rightNo}
+        <span .line-text>#{line}

@@ -20,6 +20,7 @@ library
                      Settings.StaticFiles
                      Settings.Development
                      Handler.Home
+                     Handler.Review
 
     if flag(dev) || flag(library-only)
         cpp-options:   -DDEVELOPMENT
@@ -62,7 +63,7 @@ library
                  , directory                     >= 1.1        && < 1.3
                  , warp                          >= 3.0        && < 3.1
                  , data-default
-                 , aeson                         >= 0.6        && < 0.8
+                 , aeson                         >= 0.7        && < 0.8
                  , conduit                       >= 1.0        && < 2.0
                  , monad-logger                  >= 0.3        && < 0.4
                  , fast-logger                   >= 2.1.4      && < 2.2
@@ -70,6 +71,11 @@ library
                  , heroku                        == 0.1.*
                  , unordered-containers          == 0.2.*
                  , attoparsec                    == 0.11.*
+                 , github                        == 0.8.*
+                 , diff-parse
+                 , wreq == 0.1.*
+                 , lens == 4.3.*
+                 , base64-string == 0.2.*
 
 executable         reviewhub
     if flag(library-only)
