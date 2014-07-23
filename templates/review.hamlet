@@ -1,5 +1,4 @@
 <div .diff .diff-side-by-side>
-    <div .display-toggle>
     $forall filepart <- fileparts
         $case filepart
             $of Change leftLines rightLines
