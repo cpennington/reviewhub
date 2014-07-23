@@ -21,6 +21,8 @@ library
                      Settings.Development
                      Handler.Home
                      Handler.Review
+                     Github
+                     Github.DataSource
 
     if flag(dev) || flag(library-only)
         cpp-options:   -DDEVELOPMENT
@@ -70,13 +72,16 @@ library
                  , wai-logger                    >= 2.1        && < 2.2
                  , heroku                        == 0.1.*
                  , unordered-containers          == 0.2.*
-                 , attoparsec                    == 0.11.*
+                 , attoparsec                    >= 0.11
                  , github                        == 0.8.*
                  , diff-parse
                  , wreq == 0.1.*
                  , lens == 4.3.*
                  , base64-string == 0.2.*
                  , either == 4.3.*
+                 , haxl == 0.1.*
+                 , hashable >= 1.1
+                 , async >= 2.0
 
 executable         reviewhub
     if flag(library-only)

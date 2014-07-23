@@ -1,9 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, RebindableSyntax, NoImplicitPrelude #-}
 module Handler.Review where
 
-import Import
+import Import hiding (mapM)
 
-import Data.Text (pack, lines)
+import Data.Text (pack, lines, unpack)
 import Data.Text.Encoding (decodeUtf8)
 import Data.ByteString.Lazy (toStrict)
 import Data.List (transpose, groupBy, head)
@@ -13,93 +13,19 @@ import Control.Arrow ((&&&))
 
 import qualified Github.Data.Definitions as GH
 import Github.Data.Definitions (DetailedPullRequest(..), PullRequestCommit(..), Tree(..), GitTree(..), Blob(..))
-import Github.PullRequests (pullRequest)
-import Github.GitData.Trees (nestedTree)
-import Github.GitData.Blobs (blob)
-import Network.Wreq (getWith, defaults, header, responseBody)
-import Control.Lens ((&), (.~), (^.))
-import Codec.Binary.Base64.String (decode)
 
 import Control.Monad.Trans.Either (EitherT(..), left, right, bimapEitherT, hoistEither)
 
 import Text.Diff.Parse (parseDiff)
 import qualified Text.Diff.Parse.Types as D
+import Haxl.Core
+import Haxl.Prelude
+
+import Github
+import Github.DataSource
 
 import Debug.Trace
-
-traceShowId a = trace (show a) a
-
-{- source.txt
-Line 1
-Line 2
-Line 3
-Line 4
-Line 5
-Line 6
-Line 7
-Line 8
-Line 9
-Line 10
-Line 11
-Line 12
-Line 13
-Line 14
-Line 15
-Line 16
-Line 17
-Line 18
-Line 19
-Line 20
--}
-
-{- dest.txt
-Line 1
-Replace 2
-Line 3
-Line 4
-Insert 4.5
-Insert 4.6
-Line 5
-Line 8
-Line 9
-Replace x
-Replace y
-Line 13
-Line 14
-Line 15
-Replace a
-Replace b
-Replace c
-Line 17
-Line 18
-Line 19
-Line 20
--}
-
-{-$ diff -u0 source.txt dest.txt
---- source.txt  2014-07-16 05:58:00.253622979 -0400
-+++ dest.txt    2014-07-16 05:59:12.193620434 -0400
-@@ -2 +2 @@
--Line 2
-+Replace 2
-@@ -4,0 +5,2 @@
-+Insert 4.5
-+Insert 4.6
-@@ -6,2 +7,0 @@
--Line 6
--Line 7
-@@ -10,3 +10,2 @@
--Line 10
--Line 11
--Line 12
-+Replace x
-+Replace y
-@@ -16 +15,3 @@
--Line 16
-+Replace a
-+Replace b
-+Replace c
--}
+traceShowId a = Debug.Trace.trace (show a) a
 
 data Hunk = Hunk (Int, Int) (Int, Int) [Text]
     deriving (Eq, Show)
@@ -127,18 +53,6 @@ type Source = [NumberedLine]
 context = 3
 
 last n = reverse . take n . reverse
-
-dummySourceFile :: Text
-dummySourceFile = pack $ unlines ["Line " ++ show l | l <- [1..20]]
-
-dummyHunks :: [Hunk]
-dummyHunks = [
-    Hunk (2, 1) (2, 1) ["Replace 2"], -- Single line substitution
-    Hunk (4, 0) (5, 2) ["Insert 4.5", "Insert 4.6"], -- Insertion
-    Hunk (6, 2) (7, 0) [], -- Deletion
-    Hunk (10, 3) (10, 2) ["Replace x", "Replace y"], -- Replacement with fewer lines
-    Hunk (16, 1) (15, 3) ["Replace a", "Replace b", "Replace c"] -- Replacement with more lines
-    ]
 
 sourceLines :: Source -> Hunk -> [NumberedLine]
 sourceLines source (Hunk (lStart, lLength) _ _) = take lLength $ drop (lStart - 1) $ source
@@ -207,38 +121,30 @@ trimContext hunk = trim (D.rangeStartingLineNumber $ D.hunkSourceRange hunk) (D.
 diffToHunks :: D.FileDelta -> [Hunk]
 diffToHunks delta = concatMap trimContext $ D.fileDeltaHunks delta
 
-fileParts :: Tree -> D.FileDelta -> EitherT Error IO [FileDiffPart]
+fileParts :: Tree -> D.FileDelta -> GenHaxl u [FileDiffPart]
 fileParts tree delta = do
     let hunks = diffToHunks delta
-        maybeBlobSha = lookup (D.fileDeltaSourceFile delta) (map (pack . gitTreePath &&& gitTreeSha) $ treeGitTrees tree)
-    source <- case maybeBlobSha of
-        Nothing -> return ""
-        Just blobSha -> do
-            blobData <- gh $ blob "edx" "edx-platform" blobSha
-            case blobEncoding blobData of
-                "utf-8" -> return $ pack $ blobContent blobData
-                "base64" -> return $ pack $ decode $ blobContent blobData
-    return $ fillInContext (zip [1..] $ lines source) hunks
+    source <- getFileContents tree (unpack $ D.fileDeltaSourceFile delta)
+    return $ fillInContext (zip [1..] $ Data.Text.lines source) hunks
 
 
-filesForPR :: PullRequest -> EitherT Error IO [(D.FileDelta, [FileDiffPart])]
+filesForPR :: PullRequest -> GenHaxl u [(D.FileDelta, [FileDiffPart])]
 filesForPR pr = do
-    prMeta <- gh $ pullRequest "edx" "edx-platform" pr
-    let diffOpts = defaults & header "Accept-Charset" .~ ["utf-8"]
-    diffResponse <- liftIO $ getWith diffOpts $ detailedPullRequestDiffUrl prMeta
-    deltas <- parse $ parseDiff $ decodeUtf8 $ toStrict (diffResponse ^. responseBody)
-    let prBase = detailedPullRequestBase prMeta
-    tree <- gh $ nestedTree "edx" "edx-platform" $ pullRequestCommitSha prBase
-    parts <- mapM (fileParts tree) deltas
-    return $ zip deltas parts
+    pr <- getPullRequest "edx" "edx-platform" pr
+    diffContents <- getPullRequestDiff pr
+    case parseDiff diffContents of
+        Left err -> error $ "diff parsing error"
+        Right deltas -> do
+            tree <- getTree "edx" "edx-platform" $ pullRequestCommitSha $ detailedPullRequestBase $ pr
+            parts <- mapM (fileParts tree) deltas
+            return $ zip deltas parts
 
 getReviewR :: PullRequest -> Handler Html
 getReviewR pr = do
-    filesRes <- liftIO $ runEitherT $ filesForPR pr
-    let files = case filesRes of
-            Left err -> error $ show err
-            Right files -> files
-        diffLines isSrc lines = $(whamletFile "templates/diff-lines.hamlet")
+    env <- liftIO $ initEnv (stateSet GithubState stateEmpty) ()
+    let debugEnv = env {flags = Flags 2}
+    files <- liftIO $ runHaxl debugEnv $ filesForPR pr
+    let diffLines isSrc lines = $(whamletFile "templates/diff-lines.hamlet")
         contextLines lines = $(whamletFile "templates/context-lines.hamlet")
     defaultLayout $ do
         setTitle $ toHtml $ "Reviewing " ++ show pr
