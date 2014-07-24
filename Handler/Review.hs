@@ -150,16 +150,3 @@ getReviewR pr = do
         setTitle $ toHtml $ "Reviewing " ++ show pr
         addScriptRemote "//code.jquery.com/jquery-2.1.1.min.js"
         $(widgetFile "review")
-
-ioEither :: IO (Either e a) -> EitherT e IO a
-ioEither action = do
-    result <- liftIO action
-    case result of
-        Left e -> left e
-        Right a -> right a
-
-gh :: IO (Either GH.Error a) -> EitherT Error IO a
-gh action = bimapEitherT GithubError id $ ioEither action
-
-parse :: Either String a -> EitherT Error IO a
-parse action = bimapEitherT ParseError id $ hoistEither action
