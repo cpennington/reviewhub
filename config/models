@@ -8,5 +8,13 @@ Email
     user UserId Maybe
     verkey Text Maybe
     UniqueEmail email
+PullRequestDiffHistory
+    owner Text
+    repo Text
+    pullRequest Int
+    baseSha Text
+    headSha Text
+    updated UTCTime
+    PullRequestUpdate owner repo pullRequest baseSha headSha
 
  -- By default this file is used in Model.hs (which is imported by Foundation.hs)

@@ -162,6 +162,12 @@ getReviewR owner repo pr = do
     files <- liftIO $ runHaxl debugEnv $ filesForPR owner repo pr
     let diffLines isSrc lines = $(whamletFile "templates/diff-lines.hamlet")
         contextLines lines = $(whamletFile "templates/context-lines.hamlet")
+    allHistory <- runDB $ selectList
+                        [ PullRequestDiffHistoryOwner ==. (pack $ unOwner owner)
+                        , PullRequestDiffHistoryRepo ==. (pack $ unRepo repo)
+                        , PullRequestDiffHistoryPullRequest ==. (unPR pr)
+                        ] [Desc PullRequestDiffHistoryUpdated]
+    let historyNavigator = $(whamletFile "templates/pull-request-history.hamlet")
     defaultLayout $ do
         setTitle $ toHtml $ "Reviewing " ++ show pr
         addScriptRemote "//code.jquery.com/jquery-2.1.1.min.js"

@@ -6,6 +6,7 @@ import Data.Text (Text)
 import Database.Persist.Quasi
 import Data.Typeable (Typeable)
 import Data.Hashable (Hashable)
+import Data.Time (UTCTime)
 
 newtype PullRequest = PullRequest {unPR :: Int}
     deriving (Show, Read, Eq, PathPiece, Hashable)
