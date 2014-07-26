@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, RebindableSyntax, NoImplicitPrelude #-}
 module Handler.Review where
 
-import Import hiding (mapM)
+import Import hiding (mapM, Content(..))
 
 import Data.Text (pack, lines, unpack)
 import Data.Text.Encoding (decodeUtf8)
@@ -10,9 +10,18 @@ import Data.List (transpose, groupBy, head)
 import Data.Maybe (catMaybes, listToMaybe)
 import Data.Function (on)
 import Control.Arrow ((&&&))
+import Codec.Binary.Base64.String (decode)
 
 import qualified Github.Data.Definitions as GH
-import Github.Data.Definitions (DetailedPullRequest(..), PullRequestCommit(..), Tree(..), GitTree(..), Blob(..))
+import Github.Data.Definitions (
+    DetailedPullRequest(..)
+  , PullRequestCommit(..)
+  , Tree(..)
+  , GitTree(..)
+  , Blob(..)
+  , Content(..)
+  , ContentData(..)
+  )
 
 import Control.Monad.Trans.Either (EitherT(..), left, right, bimapEitherT, hoistEither)
 
@@ -121,12 +130,19 @@ trimContext hunk = trim (D.rangeStartingLineNumber $ D.hunkSourceRange hunk) (D.
 diffToHunks :: D.FileDelta -> [Hunk]
 diffToHunks delta = concatMap trimContext $ D.fileDeltaHunks delta
 
-fileParts :: Tree -> D.FileDelta -> GenHaxl u [FileDiffPart]
-fileParts tree delta = do
+fileParts :: Owner -> Repo -> Sha -> D.FileDelta -> GenHaxl u [FileDiffPart]
+fileParts owner repo sha delta = do
     let hunks = diffToHunks delta
-    source <- getFileContents tree (unpack $ D.fileDeltaSourceFile delta)
+    content <- Github.getContents owner repo sha (Path $ unpack $ D.fileDeltaSourceFile delta)
+    source <- case content of
+        ContentFile file -> return $ decodeData (contentData file) (contentEncoding file)
+        ContentDirectory _ -> error "Got a directory when expecting a file from github"
     return $ fillInContext (zip [1..] $ Data.Text.lines source) hunks
 
+decodeData :: String -> String -> Text
+decodeData content encoding = case encoding of
+    "utf-8" -> pack $ content
+    "base64" -> pack $ decode $ content
 
 filesForPR :: Owner -> Repo -> PullRequest -> GenHaxl u [(D.FileDelta, [FileDiffPart])]
 filesForPR owner repo pr = do
@@ -135,8 +151,7 @@ filesForPR owner repo pr = do
     case parseDiff diffContents of
         Left err -> error $ "diff parsing error"
         Right deltas -> do
-            tree <- getTree owner repo $ pullRequestCommitSha $ detailedPullRequestBase $ pr
-            parts <- mapM (fileParts tree) deltas
+            parts <- mapM (fileParts owner repo $ Sha $ pullRequestCommitSha $ detailedPullRequestBase $ pr) deltas
             return $ zip deltas parts
 
 getReviewR :: Owner -> Repo -> PullRequest -> Handler Html
