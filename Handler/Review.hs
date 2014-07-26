@@ -128,22 +128,22 @@ fileParts tree delta = do
     return $ fillInContext (zip [1..] $ Data.Text.lines source) hunks
 
 
-filesForPR :: PullRequest -> GenHaxl u [(D.FileDelta, [FileDiffPart])]
-filesForPR pr = do
-    pr <- getPullRequest "edx" "edx-platform" pr
+filesForPR :: Owner -> Repo -> PullRequest -> GenHaxl u [(D.FileDelta, [FileDiffPart])]
+filesForPR owner repo pr = do
+    pr <- getPullRequest owner repo pr
     diffContents <- getPullRequestDiff pr
     case parseDiff diffContents of
         Left err -> error $ "diff parsing error"
         Right deltas -> do
-            tree <- getTree "edx" "edx-platform" $ pullRequestCommitSha $ detailedPullRequestBase $ pr
+            tree <- getTree owner repo $ pullRequestCommitSha $ detailedPullRequestBase $ pr
             parts <- mapM (fileParts tree) deltas
             return $ zip deltas parts
 
-getReviewR :: PullRequest -> Handler Html
-getReviewR pr = do
+getReviewR :: Owner -> Repo -> PullRequest -> Handler Html
+getReviewR owner repo pr = do
     env <- liftIO $ initEnv (stateSet GithubState stateEmpty) ()
     let debugEnv = env {flags = Flags 2}
-    files <- liftIO $ runHaxl debugEnv $ filesForPR pr
+    files <- liftIO $ runHaxl debugEnv $ filesForPR owner repo pr
     let diffLines isSrc lines = $(whamletFile "templates/diff-lines.hamlet")
         contextLines lines = $(whamletFile "templates/context-lines.hamlet")
     defaultLayout $ do
