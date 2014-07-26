@@ -5,4 +5,4 @@
 /robots.txt RobotsR GET
 
 / HomeR GET POST
-/review/#PullRequest ReviewR GET
+/review/#Owner/#Repo/#PullRequest ReviewR GET
