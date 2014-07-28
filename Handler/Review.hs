@@ -11,6 +11,7 @@ import Data.Maybe (catMaybes, listToMaybe)
 import Data.Function (on)
 import Control.Arrow ((&&&))
 import Codec.Binary.Base64.String (decode)
+import Yesod.Auth
 
 import qualified Github.Data.Definitions as GH
 import Github.Data.Definitions (

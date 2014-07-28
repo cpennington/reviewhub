@@ -4,7 +4,7 @@ import Prelude
 import Yesod
 import Yesod.Static
 import Yesod.Auth
-import Yesod.Auth.BrowserId
+import Yesod.Auth.OAuth2.Github
 import Yesod.Default.Config
 import Yesod.Default.Util (addStaticContentExternal)
 import Network.HTTP.Client.Conduit (Manager, HasHttpManager (getHttpManager))
@@ -76,6 +76,7 @@ instance Yesod App where
                 , css_bootstrap_css
                 ])
             $(widgetFile "default-layout")
+        maid <- maybeAuthId
         giveUrlRenderer $(hamletFile "templates/default-layout-wrapper.hamlet")
 
     -- This is done to provide an optimization for serving static files from
@@ -135,7 +136,7 @@ instance YesodAuth App where
                     }
 
     -- You can add other plugins like BrowserID, email or OAuth here
-    authPlugins _ = [authBrowserId def]
+    authPlugins _ = [oauth2Github "fe67d3c7a8c351d21cf8" "5b0cf1b5141e17759ac4fd349ee2296b52834efe" []] -- TODO: read client secret from config (and reset client secret on github)
 
     authHttpManager = httpManager
 
