@@ -23,6 +23,7 @@ import Github.Data.Definitions (
   , Content(..)
   , ContentData(..)
   )
+import Github.Auth (GithubAuth(..))
 
 import Control.Monad.Trans.Either (EitherT(..), left, right, bimapEitherT, hoistEither)
 
@@ -33,9 +34,6 @@ import Haxl.Prelude
 
 import Github
 import Github.DataSource
-
-import Debug.Trace
-traceShowId a = Debug.Trace.trace (show a) a
 
 data Hunk = Hunk (Int, Int) (Int, Int) [Text]
     deriving (Eq, Show)
@@ -157,7 +155,9 @@ filesForPR owner repo pr = do
 
 getReviewR :: Owner -> Repo -> PullRequest -> Handler Html
 getReviewR owner repo pr = do
-    env <- liftIO $ initEnv (stateSet GithubState stateEmpty) ()
+    accessKey <- getAccessKey
+    let githubState = initGlobalState accessKey
+    env <- liftIO $ initEnv (stateSet githubState stateEmpty) ()
     let debugEnv = env {flags = Flags 2}
     files <- liftIO $ runHaxl debugEnv $ filesForPR owner repo pr
     let diffLines isSrc lines = $(whamletFile "templates/diff-lines.hamlet")

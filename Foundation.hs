@@ -18,6 +18,7 @@ import Model
 import Text.Jasmine (minifym)
 import Text.Hamlet (hamletFile)
 import Yesod.Core.Types (Logger)
+import Data.Text (Text)
 
 -- | The site argument for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -125,20 +126,32 @@ instance YesodAuth App where
     -- Where to send a user after logout
     logoutDest _ = HomeR
 
-    getAuthId creds = runDB $ do
-        x <- getBy $ UniqueUser $ credsIdent creds
-        case x of
-            Just (Entity uid _) -> return $ Just uid
-            Nothing -> do
-                fmap Just $ insert User
-                    { userIdent = credsIdent creds
-                    , userPassword = Nothing
-                    }
+    getAuthId creds = do
+        setSession accessKey $ maybe "" id $ lookup "access_token" $ credsExtra creds
+        runDB $ do
+            x <- getBy $ UniqueUser $ credsIdent creds
+            case x of
+                Just (Entity uid _) -> return $ Just uid
+                Nothing -> do
+                    fmap Just $ insert User
+                        { userIdent = credsIdent creds
+                        , userPassword = Nothing
+                        }
 
     -- You can add other plugins like BrowserID, email or OAuth here
     authPlugins _ = [oauth2Github "fe67d3c7a8c351d21cf8" "5b0cf1b5141e17759ac4fd349ee2296b52834efe" []] -- TODO: read client secret from config (and reset client secret on github)
 
     authHttpManager = httpManager
+
+getAccessKey :: HandlerT m IO (Maybe Text)
+getAccessKey = do
+    mKey <- lookupSession accessKey
+    case mKey of
+        Just "" -> return Nothing
+        maybeToken -> return maybeToken
+
+-- The session key used to store the github access key
+accessKey = "_ACCESS_KEY"
 
 -- This instance is required to use forms. You can modify renderMessage to
 -- achieve customized and internationalized form validation messages.
