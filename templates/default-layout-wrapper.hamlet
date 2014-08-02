@@ -25,6 +25,13 @@ $newline never
     <body>
         <div class="container">
             <header>
+                <p>Your current auth ID: #{show maid}
+                $maybe _ <- maid
+                    <p>
+                        <a href=@{AuthR LogoutR}>Logout
+                $nothing
+                    <p>
+                        <a href=@{AuthR LoginR}>Go to the login page
             <div id="main" role="main">
               ^{pageBody pc}
             <footer>

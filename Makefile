@@ -9,8 +9,9 @@ clean-rebuild:
 	cabal install --dependencies-only
 	cabal install yesod-bin
 
+NGROK_SUFFIX=`cat .ngrok-suffix`
 ngrok:
-	ngrok -subdomain=reviewhub 3000
+	ngrok -subdomain=reviewhub$(NGROK_SUFFIX) 3000
 
 clean-heroku:
 	# Clean up the anvil cache

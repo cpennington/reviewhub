@@ -82,6 +82,7 @@ library
                  , haxl == 0.1.*
                  , hashable >= 1.1
                  , async >= 2.0
+                 , yesod-auth-oauth2 == 0.0.4
 
 executable         reviewhub
     if flag(library-only)

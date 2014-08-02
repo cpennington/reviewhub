@@ -10,7 +10,7 @@ import Control.Exception (Exception)
 import Control.Applicative
 import Control.Monad
 import Data.Hashable (Hashable(..))
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack)
 import Data.Typeable (Typeable(..))
 import Haxl.Core
 import Github.Data.Definitions (
@@ -25,8 +25,9 @@ import Github.Data.Definitions (
   )
 import Github.GitData.Trees (nestedTree)
 import Github.GitData.Blobs (blob)
-import Github.PullRequests (pullRequest)
-import Github.Repos (contentsFor)
+import Github.PullRequests (pullRequest')
+import Github.Repos (contentsFor')
+import Github.Auth (GithubAuth(..))
 import Data.List (nub)
 import Control.Concurrent.Async (Async, wait, async)
 import Control.Arrow ((&&&), right)
@@ -34,10 +35,8 @@ import Network.Wreq (getWith, defaults, header, responseBody)
 import Control.Lens ((&), (.~), (^.))
 import Data.Text.Encoding (decodeUtf8)
 import Data.ByteString.Lazy (toStrict)
-
-
-import Debug.Trace
-traceShowId a = Debug.Trace.trace (show a) a
+import qualified Data.ByteString.Char8 as BLC
+import qualified Data.ByteString as BS
 
 data GithubReq a where
     GetPullRequest :: Owner -> Repo -> PullRequest -> GithubReq DetailedPullRequest
@@ -57,7 +56,7 @@ deriving instance Show (GithubReq a)
 instance Show1 GithubReq where show1 = show
 
 instance StateKey GithubReq where
-    data State GithubReq = GithubState {}
+    data State GithubReq = GithubState { gsAuth :: Maybe GithubAuth }
 
 instance Hashable (GithubReq a) where
     hashWithSalt s (GetPullRequest owner repo pr) = hashWithSalt s (0::Int, owner, repo, pr)
@@ -71,25 +70,32 @@ instance DataSourceName GithubReq where
 instance DataSource u GithubReq where
     fetch = githubFetch
 
-githubFetch _state _flags _user bfs =
+initGlobalState :: Maybe Text -> State GithubReq
+initGlobalState Nothing = GithubState Nothing
+initGlobalState (Just token) = GithubState $ Just $ GithubOAuth $ unpack token
+
+githubFetch state _flags _user bfs =
     AsyncFetch $ \inner -> do
-        asyncs <- mapM fetchAsync bfs
+        asyncs <- mapM (fetchAsync $ gsAuth state) bfs
         inner
         mapM_ wait asyncs
 
-fetchAsync :: BlockedFetch GithubReq -> IO (Async ())
-fetchAsync (BlockedFetch req rvar) =
+fetchAsync :: Maybe GithubAuth -> BlockedFetch GithubReq -> IO (Async ())
+fetchAsync auth (BlockedFetch req rvar) =
   async $ do
-    res <- fetchReq req
+    res <- fetchReq auth req
     case res of
       Left err -> putFailure rvar $ GithubException err
       Right a -> putSuccess rvar a
 
-fetchReq :: GithubReq a -> IO (Either Error a)
-fetchReq (GetPullRequest owner repo pr) = pullRequest (unOwner owner) (unRepo repo) (unPR pr)
-fetchReq (GetTree owner repo sha) = nestedTree (unOwner owner) (unRepo repo) (unSha sha)
-fetchReq (GetContents owner repo sha path) = contentsFor (unOwner owner) (unRepo repo) (unPath path) $ Just $ unSha sha
-fetchReq (GetPullRequestDiff pr) = do
+fetchReq :: Maybe GithubAuth -> GithubReq a -> IO (Either Error a)
+fetchReq auth (GetPullRequest owner repo pr) = pullRequest' auth (unOwner owner) (unRepo repo) (unPR pr)
+fetchReq _ (GetTree owner repo sha) = nestedTree (unOwner owner) (unRepo repo) (unSha sha)
+fetchReq auth (GetContents owner repo sha path) = contentsFor' auth (unOwner owner) (unRepo repo) (unPath path) $ Just $ unSha sha
+fetchReq auth (GetPullRequestDiff pr) = do
     let diffOpts = defaults & header "Accept-Charset" .~ ["utf-8"]
-    diffResponse <- getWith diffOpts $ detailedPullRequestDiffUrl pr
+        withAuth = case auth of
+            Just (GithubOAuth token) -> diffOpts & header "Authorization" .~ ["token " `BS.append` BLC.pack token]
+            _ -> diffOpts
+    diffResponse <- getWith withAuth $ detailedPullRequestDiffUrl pr
     return $ Right $ decodeUtf8 $ toStrict $ diffResponse ^. responseBody
