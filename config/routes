@@ -6,3 +6,4 @@
 
 / HomeR GET POST
 /review/#Owner/#Repo/#PullRequest ReviewR GET
+/github/event GithubEventR POST

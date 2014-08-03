@@ -1,0 +1,5 @@
+<div>
+    <p> HEAD commit history
+    $forall Entity _ history <- allHistory
+        <p>
+            #{pullRequestDiffHistoryHeadSha history} at #{show $ pullRequestDiffHistoryUpdated history}

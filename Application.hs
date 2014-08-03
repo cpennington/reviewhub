@@ -27,9 +27,8 @@ import Yesod.Core.Types (loggerSet, Logger (Logger))
 
 import qualified Data.HashMap.Strict as H
 import qualified Data.Aeson.Types as AT
-import qualified Data.Attoparsec.Char8 as APC
-import Data.Text (unpack)
 #ifndef DEVELOPMENT
+import Data.Text (unpack)
 import qualified Web.Heroku
 #endif
 
@@ -37,6 +36,7 @@ import qualified Web.Heroku
 -- Don't forget to add new modules to your cabal file!
 import Handler.Home
 import Handler.Review
+import Handler.GithubEvent
 
 -- This line actually creates our YesodDispatch instance. It is the second half
 -- of the call to mkYesodData which occurs in Foundation.hs. Please see the
@@ -113,7 +113,7 @@ getApplicationDev =
 #ifndef DEVELOPMENT
 canonicalizeKey :: (Text, Text) -> (Text, AT.Value)
 canonicalizeKey ("dbname", val) = ("database", AT.String val)
-canonicalizeKey ("port", port) = ("port", AT.Number $ APC.I $ read $ unpack port)
+canonicalizeKey ("port", port) = ("port", AT.Number $ read $ unpack port)
 canonicalizeKey (key, value) = (key, AT.String value)
 
 toMapping :: [(Text, AT.Value)] -> AT.Value

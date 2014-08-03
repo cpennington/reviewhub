@@ -43,3 +43,5 @@
                             ^{contextLines (take context lines)}
                         <td .diff-right>
                             ^{contextLines (take context lines)}
+
+^{historyNavigator}
