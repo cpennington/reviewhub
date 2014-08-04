@@ -74,3 +74,8 @@ parseExtra :: DefaultEnv -> Object -> Parser Extra
 parseExtra _ o = Extra
     <$> o .:  "copyright"
     <*> o .:? "analytics"
+
+data GithubAuthKeys = GithubAuthKeys
+    { githubOauthClientId     :: Text
+    , githubOauthClientSecret :: Text
+    }

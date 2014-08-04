@@ -3,7 +3,6 @@
 clean-rebuild:
 	cabal sandbox delete
 	cabal sandbox init --sandbox .cabal-sandbox
-	cabal sandbox add-source ../diff-parse
 	cabal sandbox add-source ../github
 	cabal sandbox add-source ../yesod-auth-oauth2
 	cabal install alex happy
