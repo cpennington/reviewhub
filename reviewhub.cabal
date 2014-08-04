@@ -74,7 +74,7 @@ library
                  , heroku                        == 0.1.*
                  , unordered-containers          == 0.2.*
                  , attoparsec                    >= 0.11
-                 , github                        == 0.8.*
+                 , github                        == 0.9.*
                  , diff-parse
                  , wreq == 0.1.*
                  , lens == 4.3.*
