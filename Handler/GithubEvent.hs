@@ -29,17 +29,16 @@ postGithubEventR = do
     case maybeEventType of
         -- By calling "parseEvent" with the expected concrete output type of the event data type, it forces the compiler
         -- to attempt to interpret the JSON according to that type definition.
-        Just "pull_request" -> handlePullRequestEvent requireJsonBody
-        Just "ping"         -> handlePingEvent requireJsonBody
+        Just "pull_request" -> requireJsonBody >>= handlePullRequestEvent
+        Just "ping"         -> requireJsonBody >>= handlePingEvent
         Just et             -> return $ "Unhandled event type " `append` (decodeLatin1 et)
         Nothing             -> error "Required X-GitHub-Event header not found in request"
 
 raiseError :: Either Error b -> b
 raiseError = either (error . show) id
 
-handlePullRequestEvent :: Handler PullRequestEvent -> Handler Text
-handlePullRequestEvent hpev = do
-    pev <- hpev
+handlePullRequestEvent :: PullRequestEvent -> Handler Text
+handlePullRequestEvent pev = do
     case pullRequestEventAction pev of
         PullRequestSynchronized -> handleUpdatedPullRequestEvent pev
         PullRequestOpened       -> handleUpdatedPullRequestEvent pev
@@ -76,5 +75,5 @@ getBaseSha = pack . pullRequestCommitSha . detailedPullRequestBase . pullRequest
 getUpdateTime :: PullRequestEvent -> UTCTime
 getUpdateTime = fromGithubDate . detailedPullRequestUpdatedAt . pullRequestEventPullRequest
 
-handlePingEvent :: Handler PingEvent -> Handler Text
+handlePingEvent :: PingEvent -> Handler Text
 handlePingEvent _ = return "Alive and well!"
