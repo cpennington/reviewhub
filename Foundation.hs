@@ -31,6 +31,7 @@ data App = App
     , httpManager :: Manager
     , persistConfig :: Settings.PersistConf
     , appLogger :: Logger
+    , githubOauthKeys :: Settings.GithubAuthKeys
     }
 
 instance HasHttpManager App where
@@ -139,7 +140,9 @@ instance YesodAuth App where
                         }
 
     -- You can add other plugins like BrowserID, email or OAuth here
-    authPlugins _ = [oauth2Github "fe67d3c7a8c351d21cf8" "5b0cf1b5141e17759ac4fd349ee2296b52834efe" []] -- TODO: read client secret from config (and reset client secret on github)
+    authPlugins m = [oauth2Github (Settings.githubOauthClientId $ githubOauthKeys m)
+                                  (Settings.githubOauthClientSecret $ githubOauthKeys m)
+                                  []]
 
     authHttpManager = httpManager
 

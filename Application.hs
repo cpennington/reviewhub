@@ -24,11 +24,12 @@ import System.Log.FastLogger (newStdoutLoggerSet, defaultBufSize, flushLogStr)
 import Network.Wai.Logger (clockDateCacher)
 import Data.Default (def)
 import Yesod.Core.Types (loggerSet, Logger (Logger))
+import System.Environment (lookupEnv)
 
 import qualified Data.HashMap.Strict as H
 import qualified Data.Aeson.Types as AT
+import qualified Data.Text as T
 #ifndef DEVELOPMENT
-import Data.Text (unpack)
 import qualified Web.Heroku
 #endif
 
@@ -91,8 +92,10 @@ makeFoundation conf = do
             updateLoop
     _ <- forkIO updateLoop
 
+    keys <- getGithubOauthKeys
+
     let logger = Yesod.Core.Types.Logger loggerSet' getter
-        foundation = App conf s p manager dbconf logger
+        foundation = App conf s p manager dbconf logger keys
 
     -- Perform database migration using our application's logging settings.
     runLoggingT
@@ -100,6 +103,20 @@ makeFoundation conf = do
         (messageLoggerSource foundation logger)
 
     return foundation
+    where
+        getGithubOauthKeys :: IO GithubAuthKeys
+        getGithubOauthKeys = do
+            envClientId     <- lookupEnv "GITHUB_OAUTH_CLIENT_ID"
+            envClientSecret <- lookupEnv "GITHUB_OAUTH_CLIENT_SECRET"
+
+            case (envClientId, envClientSecret) of
+                (Just clientId, Just clientSecret) ->
+                    return GithubAuthKeys
+                        { githubOauthClientId     = T.pack clientId
+                        , githubOauthClientSecret = T.pack clientSecret
+                        }
+
+                _ -> error "GITHUB_OAUTH_CLIENT_ID or GITHUB_OAUTH_CLIENT_SECRET not set"
 
 -- for yesod devel
 getApplicationDev :: IO (Int, Application)
@@ -113,7 +130,7 @@ getApplicationDev =
 #ifndef DEVELOPMENT
 canonicalizeKey :: (Text, Text) -> (Text, AT.Value)
 canonicalizeKey ("dbname", val) = ("database", AT.String val)
-canonicalizeKey ("port", port) = ("port", AT.Number $ read $ unpack port)
+canonicalizeKey ("port", port) = ("port", AT.Number $ read $ T.unpack port)
 canonicalizeKey (key, value) = (key, AT.String value)
 
 toMapping :: [(Text, AT.Value)] -> AT.Value
