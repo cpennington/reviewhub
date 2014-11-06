@@ -1,10 +1,10 @@
 .PHONY: clean-rebuild
 
 clean-rebuild:
-	cabal sandbox delete
+	cabal sandbox delete || true
 	cabal sandbox init --sandbox .cabal-sandbox
-	cabal sandbox add-source ../github
-	cabal sandbox add-source ../yesod-auth-oauth2
+	cabal sandbox add-source github
+	cabal sandbox add-source yesod-auth-oauth2
 	cabal install alex happy
 	cabal install --dependencies-only
 	cabal install yesod-bin

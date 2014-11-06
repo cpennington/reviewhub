@@ -141,8 +141,7 @@ instance YesodAuth App where
 
     -- You can add other plugins like BrowserID, email or OAuth here
     authPlugins m = [oauth2Github (Settings.githubOauthClientId $ githubOauthKeys m)
-                                  (Settings.githubOauthClientSecret $ githubOauthKeys m)
-                                  []]
+                                  (Settings.githubOauthClientSecret $ githubOauthKeys m)]
 
     authHttpManager = httpManager
 

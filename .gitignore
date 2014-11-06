@@ -14,3 +14,4 @@ cabal.sandbox.config
 *.swp
 .anvil
 .ngrok-suffix
+*.keter

@@ -1,0 +1,7 @@
+[submodule "github"]
+	path = github
+	url = git@github.com:mulby/github.git
+	branch = support-pr-comment-auth
+[submodule "yesod-auth-oauth2"]
+	path = yesod-auth-oauth2
+	url = git@github.com:mulby/yesod-auth-oauth2.git
