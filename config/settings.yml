@@ -15,5 +15,5 @@ Staging:
   <<: *defaults
 
 Production:
-  approot: "http://review-hub.herokuapp.com"
+  approot: "https://reviewhub.ngrok.com"
   <<: *defaults
