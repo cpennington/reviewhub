@@ -21,9 +21,13 @@ RUN cd cabal-install-${CABAL_INSTALL_VERSION} && ./bootstrap.sh --global --no-do
 ENV PATH /root/.cabal/bin:$PATH
 RUN rm -rf cabal-install-${CABAL_INSTALL_VERSION}*
 
-RUN cabal update && cabal install keter
 RUN mkdir -p /opt/keter/bin /opt/keter/incoming /opt/keter/etc
-RUN cp /root/.cabal/bin/keter /opt/keter/bin/
+ENV KETER_FORK mulby
+ENV KETER_VERSION d3db453
+RUN curl -L https://github.com/${KETER_FORK}/keter/tarball/${KETER_VERSION} | tar xz
+RUN cd ${KETER_FORK}-keter-${KETER_VERSION} && cabal sandbox init --sandbox .cabal-sandbox
+RUN cd ${KETER_FORK}-keter-${KETER_VERSION} && cabal update && cabal install --dependencies-only && cabal configure && cabal build
+RUN cd ${KETER_FORK}-keter-${KETER_VERSION} && cp dist/build/keter/keter /opt/keter/bin/
 
 ADD . /opt/devel/reviewhub
 WORKDIR /opt/devel/reviewhub

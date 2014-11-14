@@ -1,7 +1,13 @@
-exec: ../dist/build/reviewhub/reviewhub
-args:
-    - production
-host: reviewhub.ngrok.com
+stanzas:
+    - type: webapp
+      exec: ../dist/build/reviewhub/reviewhub
+      args:
+        - production
+      forward-env:
+        - DATABASE_URL
+        - GITHUB_OAUTH_CLIENT_ID
+        - GITHUB_OAUTH_CLIENT_SECRET
+      host: reviewhub.ngrok.com
 
 # Use the following to automatically copy your bundle upon creation via `yesod
 # keter`. Uses `scp` internally, so you can set it to a remote destination
